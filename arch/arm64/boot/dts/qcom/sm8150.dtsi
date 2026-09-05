@@ -2241,7 +2241,7 @@
 						compatible = "qcom,fastrpc-compute-cb";
 						reg = <3>;
 						iommus = <&apps_smmu 0x05a3 0x0>;
-						/* note: shared-cb = <4> in downstream */
+						qcom,nsessions = <4>;
 					};
 				};
 			};
