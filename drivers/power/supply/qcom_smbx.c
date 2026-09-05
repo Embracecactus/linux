@@ -804,7 +804,7 @@ static const struct smb_init_register smb5_init_seq[] = {
 	 */
 	{ .addr = FAST_CHARGE_CURRENT_CFG,
 	  .mask = FAST_CHARGE_CURRENT_SETTING_MASK,
-	  .val = 1950000 / CURRENT_SCALE_FACTOR },
+	  .val = 1500000 / CURRENT_SCALE_FACTOR },
 };
 
 /* Init sequence derived from vendor downstream driver */
@@ -1090,7 +1090,7 @@ static int smb_probe(struct platform_device *pdev)
 	 * reporting.
 	 */
 	rc = regmap_write(chip->regmap, chip->base + FAST_CHARGE_CURRENT_CFG,
-			  1950000 / CURRENT_SCALE_FACTOR);
+			  1500000 / CURRENT_SCALE_FACTOR);
 	if (rc < 0)
 		return dev_err_probe(chip->dev, rc,
 				     "Couldn't write fast charge current cfg");
