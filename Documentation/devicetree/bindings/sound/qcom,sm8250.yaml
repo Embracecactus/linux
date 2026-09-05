@@ -20,6 +20,7 @@ properties:
           - enum:
               - lenovo,yoga-c630-sndcard
               - qcom,db845c-sndcard
+              - qcom,sm8150-sndcard
           - const: qcom,sdm845-sndcard
       - items:
           - enum:
