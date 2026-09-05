@@ -25,6 +25,18 @@
 
 #include "goodix_gtx8.h"
 
+#define GOODIX_GTX8_POLL_INTERVAL_MIN_MS	10
+#define GOODIX_GTX8_POLL_INTERVAL_MAX_MS	1000
+
+/*
+ * Optional bring-up polling for boards whose interrupt notification path is
+ * not yet working. The default keeps normal IRQ-driven operation.
+ */
+static unsigned int poll_interval_ms;
+module_param(poll_interval_ms, uint, 0444);
+MODULE_PARM_DESC(poll_interval_ms,
+		 "Optional bring-up polling interval in ms (10-1000; 0 uses IRQ)");
+
 static const struct regmap_config goodix_gtx8_regmap_conf = {
 	.reg_bits = 16,
 	.val_bits = 8,
@@ -181,9 +193,8 @@ static void goodix_gtx8_touch_handler(struct goodix_gtx8_core *cd, u8 touch_num,
 	goodix_gtx8_report_state(cd, touch_num, touch_data);
 }
 
-static irqreturn_t goodix_gtx8_irq(int irq, void *data)
+static void goodix_gtx8_process_event(struct goodix_gtx8_core *cd)
 {
-	struct goodix_gtx8_core *cd = data;
 	struct goodix_gtx8_event_normandy *ev_normandy;
 	struct goodix_gtx8_event_yellowstone *ev_yellowstone;
 	union goodix_gtx8_touch *touch_data;
@@ -250,7 +261,19 @@ out_clear:
 	regmap_write(cd->regmap, cd->ic_data->touch_data_addr, 0);
 
 out:
+	return;
+}
+
+static irqreturn_t goodix_gtx8_irq(int irq, void *data)
+{
+	goodix_gtx8_process_event(data);
+
 	return IRQ_HANDLED;
+}
+
+static void goodix_gtx8_poll(struct input_dev *input)
+{
+	goodix_gtx8_process_event(input_get_drvdata(input));
 }
 
 static int goodix_gtx8_input_dev_config(struct goodix_gtx8_core *cd)
@@ -282,6 +305,14 @@ static int goodix_gtx8_input_dev_config(struct goodix_gtx8_core *cd)
 				    INPUT_MT_DIRECT | INPUT_MT_DROP_UNUSED);
 	if (error)
 		return error;
+
+	if (poll_interval_ms) {
+		error = input_setup_polling(cd->input_dev, goodix_gtx8_poll);
+		if (error)
+			return error;
+
+		input_set_poll_interval(cd->input_dev, poll_interval_ms);
+	}
 
 	error = input_register_device(cd->input_dev);
 	if (error)
@@ -403,7 +434,8 @@ static int goodix_gtx8_suspend(struct device *dev)
 {
 	struct goodix_gtx8_core *cd = dev_get_drvdata(dev);
 
-	disable_irq(cd->irq);
+	if (!poll_interval_ms)
+		disable_irq(cd->irq);
 	goodix_gtx8_power_off(cd);
 
 	return 0;
@@ -418,7 +450,8 @@ static int goodix_gtx8_resume(struct device *dev)
 	if (error)
 		return error;
 
-	enable_irq(cd->irq);
+	if (!poll_interval_ms)
+		enable_irq(cd->irq);
 
 	return 0;
 }
@@ -442,6 +475,16 @@ static int goodix_gtx8_probe(struct i2c_client *client)
 	cd = devm_kzalloc(&client->dev, sizeof(*cd), GFP_KERNEL);
 	if (!cd)
 		return -ENOMEM;
+
+	if (poll_interval_ms &&
+	    (poll_interval_ms < GOODIX_GTX8_POLL_INTERVAL_MIN_MS ||
+	     poll_interval_ms > GOODIX_GTX8_POLL_INTERVAL_MAX_MS)) {
+		dev_err(&client->dev,
+			"poll_interval_ms must be between %u and %u ms\n",
+			GOODIX_GTX8_POLL_INTERVAL_MIN_MS,
+			GOODIX_GTX8_POLL_INTERVAL_MAX_MS);
+		return -EINVAL;
+	}
 
 	regmap = devm_regmap_init_i2c(client, &goodix_gtx8_regmap_conf);
 	if (IS_ERR(regmap))
@@ -496,12 +539,17 @@ static int goodix_gtx8_probe(struct i2c_client *client)
 		return error;
 	}
 
-	error = devm_request_threaded_irq(cd->dev, cd->irq, NULL,
-					  goodix_gtx8_irq, IRQF_ONESHOT,
-					  "goodix-gtx8", cd);
-	if (error) {
-		dev_err(cd->dev, "request threaded IRQ failed: %d\n", error);
-		return error;
+	if (!poll_interval_ms) {
+		error = devm_request_threaded_irq(cd->dev, cd->irq, NULL,
+						  goodix_gtx8_irq, IRQF_ONESHOT,
+						  "goodix-gtx8", cd);
+		if (error) {
+			dev_err(cd->dev, "request threaded IRQ failed: %d\n", error);
+			return error;
+		}
+	} else {
+		dev_info(cd->dev, "optional bring-up polling: %u ms\n",
+			 poll_interval_ms);
 	}
 
 	dev_set_drvdata(cd->dev, cd);
