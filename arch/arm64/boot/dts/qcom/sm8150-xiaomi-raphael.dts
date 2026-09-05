@@ -117,6 +117,28 @@
 		regulator-max-microvolt = <6000000>;
 	};
 
+	vreg_tp_1p8: regulator-tp-1p8 {
+		compatible = "regulator-fixed";
+		regulator-name = "vreg_tp_1p8";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		gpio = <&tlmm 100 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		regulator-boot-on;
+		startup-delay-us = <5000>;
+	};
+
+	vreg_tp_3p3: regulator-tp-3p3 {
+		compatible = "regulator-fixed";
+		regulator-name = "vreg_tp_3p3";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&tlmm 98 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		regulator-boot-on;
+		startup-delay-us = <5000>;
+	};
+
 	wcn3998-pmu {
 		compatible = "qcom,wcn3998-pmu";
 
@@ -562,6 +584,23 @@
 
 		pinctrl-0 = <&nfc_default>;
 		pinctrl-names = "default";
+	};
+};
+
+&i2c19 {
+	clock-frequency = <100000>;
+	status = "okay";
+
+	touchscreen@5d {
+		compatible = "goodix,gt9886";
+		reg = <0x5d>;
+
+		avdd-supply = <&vreg_tp_3p3>;
+		vddio-supply = <&vreg_tp_1p8>;
+		interrupts-extended = <&tlmm 122 IRQ_TYPE_LEVEL_LOW>;
+		reset-gpios = <&tlmm 54 GPIO_ACTIVE_LOW>;
+		touchscreen-size-x = <1080>;
+		touchscreen-size-y = <2340>;
 	};
 };
 
