@@ -169,7 +169,9 @@ patternProperties:
 
   "^haptics@[0-9a-f]+$":
     type: object
-    $ref: /schemas/input/qcom,spmi-haptics.yaml#
+    oneOf:
+      - $ref: /schemas/input/qcom,pm8150b-haptics.yaml#
+      - $ref: /schemas/input/qcom,spmi-haptics.yaml#
 
   "^led-controller@[0-9a-f]+$":
     type: object
